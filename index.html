@@ -10,106 +10,101 @@
         .bg-card { background-color: #161b22; border: 1px solid #30363d; rounded: 0.5rem; }
         .text-muted { color: #8b949e; }
         .link-hover:hover { color: #58a6ff; text-decoration: underline; }
-        .tab-active { border-bottom: 2px solid #58a6ff; color: #58a6ff; }
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
     </style>
 </head>
 <body class="p-8">
     <div class="max-w-3xl mx-auto">
-        <h1 class="text-3xl font-bold mb-6 text-white">YouTube Tracker & Reactions</h1>
-        
-        <div class="flex gap-4 mb-6 border-b border-[#30363d] pb-2">
-            <button id="tab-channels" class="tab-active pb-2 font-medium transition-colors" onclick="switchTab('channels')">Kanal-Tracker (RSS)</button>
-            <button id="tab-reactions" class="text-muted pb-2 font-medium hover:text-[#c9d1d9] transition-colors" onclick="switchTab('reactions')">Manhunt Reactions</button>
+        <h1 class="text-3xl font-bold mb-2 text-white">YouTube Tracker</h1>
+        <p class="text-muted text-sm mb-8">Klicke auf einen Kanal, um die Videos aufzuklappen. Die Videos bleiben nach dem Laden stehen, bis du die Seite neu lädst.</p>
+
+        <div id="channels-container" class="space-y-4 mb-8">
+            <!-- Accordions werden hier generiert -->
         </div>
 
-        <!-- Ansicht 1: RSS Kanäle -->
-        <div id="view-channels" class="mb-8">
-            <label for="channelSelect" class="block text-sm font-medium mb-2 text-muted">Kanal auswählen:</label>
-            <select id="channelSelect" class="bg-[#0d1117] border border-[#30363d] text-[#c9d1d9] text-sm rounded focus:ring-[#58a6ff] focus:border-[#58a6ff] block w-full p-2.5 outline-none mb-4">
-                <option value="" disabled selected>Bitte wählen...</option>
-            </select>
-        </div>
+        <hr class="border-[#30363d] my-8">
 
-        <!-- Ansicht 2: Globale Suche -->
-        <div id="view-reactions" class="mb-8 hidden">
-            <p class="text-sm text-muted mb-4">Durchsucht ganz YouTube nach den neuesten "Manhunt Saigon" Reactions. <br>(Hinweis: Für diese globale Suche wird ein YouTube API-Key benötigt).</p>
-            <div class="flex items-center gap-4">
+        <h2 class="text-xl font-bold mb-4 text-white">Manhunt Reactions (Globale Suche)</h2>
+        <div id="view-reactions" class="bg-card p-6 border border-[#30363d] rounded-lg">
+            <p class="text-sm text-muted mb-4">Durchsucht ganz YouTube nach den neuesten "Manhunt Saigon" Reactions. <br>(Benötigt einen YouTube API-Key).</p>
+            <div class="flex items-center gap-4 mb-6">
                 <button onclick="fetchReactions()" class="bg-[#238636] hover:bg-[#2ea043] text-white px-4 py-2 rounded text-sm font-medium transition-colors">Neueste Reactions suchen</button>
                 <button onclick="resetApiKey()" class="text-xs text-muted underline hover:text-white transition-colors">API-Key ändern/löschen</button>
             </div>
-        </div>
-
-        <div id="videoContainer" class="space-y-4">
-            <p class="text-muted text-sm italic" id="start-text">Wähle einen Kanal oder suche nach Reactions, um Videos zu laden.</p>
+            <div id="reactionsContainer" class="space-y-4">
+                <!-- Reactions werden hier geladen -->
+            </div>
         </div>
     </div>
 
     <script>
         const channels = {
             "FritzMeineckeLive": "UCGRb1WmL-v6AxZRLbcdXD_Q",
-            "NerdsHeaven.de": "UCJgscJUwcnegPlrQLouVlfg",
+            "NerdsHeaven.de": "UCc4vLamPzjYvcOFZiOD65Pg", // Korrigierte Hauptkanal ID
             "Cliff Beats Classics": "UCka4yqPXK4DujPIsrB6xu-Q",
-            "LeFloidLive": "UC8XoF1y5K_J0A10a6kQ-nkw",
+            "LeFloidLive": "UCRkGBOn8P6IBriIh3ACchjw", // Korrigierte LeFloidLive ID
             "Manhunt (Saigon)": "UCnXFGVa7VEoiM2Adftm_Hug" 
         };
 
-        const select = document.getElementById('channelSelect');
-        const container = document.getElementById('videoContainer');
+        const channelsContainer = document.getElementById('channels-container');
 
+        // Accordion-Menüs für jeden Kanal erstellen
         for (const [name, id] of Object.entries(channels)) {
-            const option = document.createElement('option');
-            option.value = id;
-            option.textContent = name;
-            select.appendChild(option);
+            const details = document.createElement('details');
+            details.className = "bg-[#0d1117] border border-[#30363d] rounded-lg overflow-hidden group";
+            
+            const summary = document.createElement('summary');
+            summary.className = "p-4 font-semibold text-[#c9d1d9] bg-[#161b22] cursor-pointer hover:bg-[#1c2128] transition-colors flex justify-between items-center";
+            summary.innerHTML = `
+                <span>${name}</span>
+                <span class="text-xs text-muted group-open:rotate-180 transition-transform">▼</span>
+            `;
+            
+            const content = document.createElement('div');
+            content.className = "p-4 space-y-4 border-t border-[#30363d]";
+            content.id = `content-${id}`;
+            content.innerHTML = `<p class="text-sm text-muted">Klicke zum Laden...</p>`;
+
+            // Lade Daten nur beim ERSTEN Aufklappen, danach bleiben sie bestehen
+            let loaded = false;
+            details.addEventListener('toggle', (e) => {
+                if (details.open && !loaded) {
+                    loaded = true;
+                    fetchVideosRSS(id, content, name.includes("Manhunt"));
+                }
+            });
+
+            details.appendChild(summary);
+            details.appendChild(content);
+            channelsContainer.appendChild(details);
         }
 
-        function switchTab(tab) {
-            document.getElementById('view-channels').classList.toggle('hidden', tab !== 'channels');
-            document.getElementById('view-reactions').classList.toggle('hidden', tab !== 'reactions');
-            
-            document.getElementById('tab-channels').className = tab === 'channels' ? 'tab-active pb-2 font-medium transition-colors' : 'text-muted pb-2 font-medium hover:text-[#c9d1d9] transition-colors';
-            document.getElementById('tab-reactions').className = tab === 'reactions' ? 'tab-active pb-2 font-medium transition-colors' : 'text-muted pb-2 font-medium hover:text-[#c9d1d9] transition-colors';
-            
-            container.innerHTML = '';
-        }
+        function createVideoCard(video, source) {
+            const pubDate = source === 'rss' ? video.pubDate : video.snippet.publishedAt;
+            const title = source === 'rss' ? video.title : video.snippet.title;
+            const link = source === 'rss' ? video.link : `https://www.youtube.com/watch?v=${video.id.videoId}`;
+            const channelName = source === 'rss' ? video.author : video.snippet.channelTitle;
 
-        select.addEventListener('change', (e) => {
-            const isManhunt = e.target.options[e.target.selectedIndex].text.includes("Manhunt");
-            fetchVideosRSS(e.target.value, isManhunt);
-        });
+            const date = new Date(pubDate).toLocaleDateString('de-DE', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
 
-        function renderVideos(videos, source) {
-            if (videos.length === 0) {
-                container.innerHTML = '<p class="text-muted text-sm">Keine Videos gefunden.</p>';
-                return;
-            }
-            
-            videos.forEach(video => {
-                // Unterscheidung zwischen RSS und API Datenstruktur
-                const pubDate = source === 'rss' ? video.pubDate : video.snippet.publishedAt;
-                const title = source === 'rss' ? video.title : video.snippet.title;
-                const link = source === 'rss' ? video.link : `https://www.youtube.com/watch?v=${video.id.videoId}`;
-                const channelName = source === 'rss' ? video.author : video.snippet.channelTitle;
-
-                const date = new Date(pubDate).toLocaleDateString('de-DE', {
-                    day: '2-digit', month: '2-digit', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit'
-                });
-
-                const card = document.createElement('div');
-                card.className = 'bg-card p-4 flex flex-col gap-2 transition-colors hover:border-[#58a6ff]';
-                card.innerHTML = `
-                    <a href="${link}" target="_blank" class="text-lg font-semibold text-[#c9d1d9] link-hover line-clamp-2">
+            return `
+                <div class="bg-card p-4 flex flex-col gap-1 transition-colors hover:border-[#58a6ff]">
+                    <a href="${link}" target="_blank" class="text-base font-semibold text-[#c9d1d9] link-hover line-clamp-2">
                         ${title}
                     </a>
-                    <span class="text-xs text-muted">Von: <strong class="text-white">${channelName}</strong> | Hochgeladen am: ${date} Uhr</span>
-                `;
-                container.appendChild(card);
-            });
+                    <span class="text-xs text-muted">
+                        ${source === 'api' ? `Von: <strong class="text-white">${channelName}</strong> | ` : ''}Hochgeladen am: ${date} Uhr
+                    </span>
+                </div>
+            `;
         }
 
-        function fetchVideosRSS(channelId, isManhunt = false) {
-            container.innerHTML = '<p class="text-muted text-sm animate-pulse">Lade Videos...</p>';
+        function fetchVideosRSS(channelId, containerElement, isManhunt) {
+            containerElement.innerHTML = '<p class="text-muted text-sm animate-pulse">Lade Videos...</p>';
             const rssUrl = encodeURIComponent(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
             const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}`;
 
@@ -117,17 +112,23 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status !== 'ok') throw new Error('Feed konnte nicht geladen werden.');
-                    container.innerHTML = '';
+                    
                     let videos = data.items;
                     if (isManhunt) {
                         videos = videos.filter(video => video.title.toLowerCase().includes("saigon"));
                     } else {
                         videos = videos.slice(0, 5); 
                     }
-                    renderVideos(videos, 'rss');
+                    
+                    if (videos.length === 0) {
+                        containerElement.innerHTML = '<p class="text-muted text-sm">Keine Videos gefunden.</p>';
+                        return;
+                    }
+
+                    containerElement.innerHTML = videos.map(v => createVideoCard(v, 'rss')).join('');
                 })
                 .catch(error => {
-                    container.innerHTML = `<p class="text-red-400 text-sm">Fehler: ${error.message}</p>`;
+                    containerElement.innerHTML = `<p class="text-red-400 text-sm">Fehler beim Laden. ID korrekt?</p>`;
                 });
         }
 
@@ -137,9 +138,10 @@
         }
 
         function fetchReactions() {
+            const container = document.getElementById('reactionsContainer');
             let apiKey = localStorage.getItem('ytApiKey');
             if (!apiKey) {
-                apiKey = prompt("Um ganz YouTube global nach Reactions zu durchsuchen, wird hierfür der YouTube API-Key benötigt.\n\nBitte gib deinen Key ein (er wird nur lokal in deinem Browser gespeichert):");
+                apiKey = prompt("YouTube API-Key eingeben (wird nur lokal im Browser gespeichert):");
                 if (!apiKey) return;
                 localStorage.setItem('ytApiKey', apiKey);
             }
@@ -147,7 +149,6 @@
             container.innerHTML = '<p class="text-muted text-sm animate-pulse">Durchsuche YouTube nach neuesten Reactions...</p>';
             
             const query = encodeURIComponent("Manhunt Saigon reaction");
-            // Sucht nach Videos, sortiert nach neuestem Datum
             const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&order=date&type=video&maxResults=10&key=${apiKey}`;
 
             fetch(searchUrl)
@@ -156,8 +157,11 @@
                     return response.json();
                 })
                 .then(data => {
-                    container.innerHTML = '';
-                    renderVideos(data.items, 'api');
+                    if (data.items.length === 0) {
+                        container.innerHTML = '<p class="text-muted text-sm">Keine Reactions gefunden.</p>';
+                        return;
+                    }
+                    container.innerHTML = data.items.map(v => createVideoCard(v, 'api')).join('');
                 })
                 .catch(error => {
                     container.innerHTML = `<p class="text-red-400 text-sm">Fehler: ${error.message}</p>`;
